@@ -22,7 +22,7 @@
 
 -mod_title("Zotonic Page Stats in Folsom").
 -mod_description("A module to maintain page request statistics in Folsom").
--mod_prio(9999).
+-mod_prio(500).
 -mod_depends([]).
 -mod_provides([folsom_page_stats]).
 
@@ -32,17 +32,18 @@
 
 %% interface functions
 -export([
-    observe_dispatch/2
+    observe_page_req/2
 ]).
 
 %% @doc Log page request. For now it just dumps to console like tracer
-observe_dispatch(#dispatch{path=Path}, Context) ->
-    ReqData = m_req:m_to_list(#m{value=undefined},Context),
-    log_req_data(ReqData, Context),
+observe_page_req(Req=#page_req{}, _) ->
+    %%LogEnv = io_lib:format("~p~n", [[{H,lager:get_loglevel(H)} || H <- gen_event:which_handlers(lager_event)]]),
+    erlang:error(
+		{log_env_dump, [
+		       {H,lager:get_loglevel(H)} || H <- gen_event:which_handlers(lager_event)
+		       ]
+		 }
+	),
+    lager:log(info, self(), io_lib:format("(module) Dumping request data...~n~p", [Req])),
     undefined.
 
-%% @doc Default callback function for tracefun/2
-log_req_data(ReqData, Context) ->
-    ?zWarning("--Start Page Request Data --~n~p~n--End Page Request Data--~n~n",
-              [ReqData], Context),
-    ok.

@@ -65,6 +65,44 @@ is_authorized(ReqData, Context) ->
 
 %% @doc Show the page.  Add a noindex header when requested by the editor.
 html(Context) ->
+    ReqDataDump = m_req:m_to_list(#m{value=undefined},Context),
+    lager:log(info, self(), io_lib:format("Dumping request data...~n~p", [ReqDataDump])),
+    
+    % The following will be moved into its own module, then triggered via notification
+    % The following gets request stat info from the request data, enters it into Folsom
+   
+    Site = z_context:site(Context),
+    ReqData = z_context:get_reqdata(Context),
+    {{_,Month,Day},{Hour,_,_}} = erlang:localtime(),
+    Path = m_req:get(path, ReqData),
+    Referer = proplists:get_value("referer", wrq:req_headers(ReqData), none),
+    UserAgent = m_req:get(user_agent, ReqData),
+    Notification = #page_req{
+    		 path=Path,
+		 referer=Referer,
+		 agent=UserAgent,
+		 timestamp=erlang:localtime()
+		 },
+    z_notifier:notify(Notification, Context),
+    
+    folsom_metrics:notify({Site, req_by_hour, {Month,Day,Hour}}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_day, {Month, Day, all}}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_month, {Month, all, all}}, {inc,1}, counter),
+
+    folsom_metrics:notify({Site, req_by_path, Path}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_path_per_month, Path, {Month, all, all}}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_path_per_day, Path, {Month, Day, all}}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_path_per_hour, Path, {Month, Day, Hour}}, {inc,1}, counter),
+
+    folsom_metrics:notify({Site, req_by_ref, Referer}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_ref_per_month, Referer, {Month, all, all}}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_ref_per_day, Referer, {Month, Day, all}}, {inc,1}, counter),
+    folsom_metrics:notify({Site, req_by_ref_per_hour, Referer, {Month, Day, Hour}}, {inc,1}, counter),
+
+    folsom_metrics:notify({Site, req_by_agent, UserAgent}, {inc,1}, counter),
+    
+    %% end of stats logging code
+
     Id = get_id(Context),
     Context1 = z_context:set_noindex_header(m_rsc:p(Id, seo_noindex, Context), Context),
 

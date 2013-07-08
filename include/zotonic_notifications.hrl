@@ -457,6 +457,11 @@
 % development_reload - Reload all template, modules etc
 % development_make - Perform a 'make' on Zotonic, reload all new beam files
 
-
-
+%% @doc A page request has been made. (notify)
+-record(page_req, {
+		path :: string(),
+		referer :: string(),
+		agent :: string(),
+		timestamp :: calendar:datetime()
+	}).
 
