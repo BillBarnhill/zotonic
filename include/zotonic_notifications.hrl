@@ -459,6 +459,7 @@
 
 %% @doc A page request has been made. (notify)
 -record(page_req, {
+		site :: atom(),
 		path :: string(),
 		referer :: string(),
 		agent :: string(),

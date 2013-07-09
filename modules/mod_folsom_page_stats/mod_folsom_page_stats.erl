@@ -26,24 +26,56 @@
 -mod_depends([]).
 -mod_provides([folsom_page_stats]).
 
--compile([{parse_transform, lager_transform}]).
-
 -include_lib("zotonic.hrl").
 
 %% interface functions
 -export([
-    observe_page_req/2
+    observe_page_req/2,
+    get_page_stats/1,
+    get_page_stat_values/1
 ]).
 
 %% @doc Log page request. For now it just dumps to console like tracer
 observe_page_req(Req=#page_req{}, _) ->
-    %%LogEnv = io_lib:format("~p~n", [[{H,lager:get_loglevel(H)} || H <- gen_event:which_handlers(lager_event)]]),
-    erlang:error(
-		{log_env_dump, [
-		       {H,lager:get_loglevel(H)} || H <- gen_event:which_handlers(lager_event)
-		       ]
-		 }
-	),
-    lager:log(info, self(), io_lib:format("(module) Dumping request data...~n~p", [Req])),
+    lager:log(info, self(), io_lib:format("(module at info) Dumping request data...~n~p", [Req])),
+
+    Site = Req#page_req.site,
+    TS = Req#page_req.timestamp,
+
+    IncTemporal = make_temporal_counter_inc_fn(Site, TS),
+    IncTemporal(req, count),
+    IncTemporal(req_by_path, Req#page_req.path),
+    IncTemporal(req_by_referer, Req#page_req.referer),
+    IncTemporal(req_by_agent, Req#page_req.agent),
     undefined.
 
+%% @doc Create a function that increments a counter
+%%      , creating the counter if it didn't already
+%%      exist.
+make_temporal_counter_inc_fn(Site, Timestamp) ->
+    Date = erlang:element(1, Timestamp),
+    Time = erlang:element(2, Timestamp),
+    TimePerHour = erlang:setelement(3, erlang:setelement(2, Time, all), all),
+    AllTime = {all, all, all},
+    DatePerMonth = erlang:setelement(3, Date, all),
+    fun (Category, Id) ->
+    	Name = {Site, Category, Id},
+       	inc_counter(Name),
+	inc_counter({Name, {Date, TimePerHour}}),
+	inc_counter({Name, {Date, AllTime}}),
+	inc_counter({Name, {DatePerMonth, AllTime}})
+    end.
+
+%% @doc Increment a Folsom counter, creating it if
+%%      it didn't already exist.
+inc_counter(Name) ->
+    folsom_metrics:notify(Name, {inc, 1}, counter).
+
+%% @doc Return the metric names for page statistics
+get_page_stats(Site) ->
+     [Name || Name = {{SiteActual, _, _}, _} <- folsom_metrics:get_metrics(), SiteActual =:= Site].
+
+%% @doc Return the metric names and their values,
+%%      as a proplist
+get_page_stat_values(Site) ->
+      [ {Name, folsom_metrics:get_metric_value(Name)} || Name <- get_page_stats(Site)].
